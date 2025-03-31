@@ -46,7 +46,6 @@ criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.0005)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)  # Μείωση learning rate κάθε 10 epochs
 
-# ...existing code...
 
 # Train the model
 num_epochs = 50
