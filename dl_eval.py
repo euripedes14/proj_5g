@@ -28,13 +28,28 @@ with torch.no_grad():
 
 test_labels = test_labels.cpu().numpy()
 
+# Μετατόπιση των προβλέψεων προς τα πίσω κατά 1 βήμα
+predictions = np.roll(predictions, shift=-1)
+
+# Αφαίρεση του τελευταίου στοιχείου (άκυρο λόγω μετατόπισης)
+predictions = predictions[:-1]
+test_labels = test_labels[:-1]
 # Compute evaluation metrics
 rmse = np.sqrt(mean_squared_error(test_labels, predictions))
 
-# Corrected MAPE calculation to avoid division by zero
+#MAPE calculation to avoid division by zero
 def mean_absolute_percentage_error(y_true, y_pred):
-    epsilon = 1e-8  # Προσθήκη ενός μικρού αριθμού για αποφυγή διαίρεσης με μηδέν
-    return np.mean(np.abs((y_true - y_pred) / (np.maximum(np.abs(y_true), epsilon)))) * 100
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    
+    # Avoid division by zero - Ignore zero values
+    non_zero_mask = y_true != 0
+    y_true_filtered = y_true[non_zero_mask]
+    y_pred_filtered = y_pred[non_zero_mask]
+    
+    if len(y_true_filtered) == 0:
+        return np.nan  # No valid MAPE calculation possible
+    
+    return np.mean(np.abs((y_true_filtered - y_pred_filtered) / y_true_filtered)) * 100
 
 # Calculate MAPE
 mape = mean_absolute_percentage_error(test_labels, predictions)
@@ -49,5 +64,5 @@ plt.legend()
 plt.xlabel("Time")
 plt.ylabel("DL Bitrate")
 plt.title("LSTM Predictions vs Actual Values")
-plt.grid(True)  # Προσθήκη πλέγματος για καλύτερη ανάγνωση
+plt.grid(True)
 plt.show()

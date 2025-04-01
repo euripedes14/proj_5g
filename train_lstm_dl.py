@@ -18,23 +18,25 @@ test_sequences = torch.tensor(test_data["sequences"], dtype=torch.float32).to(de
 test_labels = torch.tensor(test_data["labels"], dtype=torch.float32).to(device)
 
 # Create DataLoader
-batch_size = 32
+batch_size = 16 # was 32 initially
 train_dataset = TensorDataset(train_sequences, train_labels)
 test_dataset = TensorDataset(test_sequences, test_labels)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-# Define the LSTM model
+#DEFINE MODEL
 class LSTMModel(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layers=2, dropout=0.2):
+    def __init__(self, input_size, hidden_size=100, output_size=1, num_layers=3, dropout=0.2):
         super(LSTMModel, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers=num_layers, dropout=dropout, batch_first=True)
-        self.fc = nn.Linear(hidden_size, output_size)
-    
+        self.lstm = nn.LSTM(
+            input_size, hidden_size, num_layers=num_layers, dropout=dropout, batch_first=True, bidirectional=True
+        )
+        self.fc = nn.Linear(hidden_size * 2, output_size)  # Adjust for bidirectional LSTM (hidden_size * 2)
+
     def forward(self, x):
         out, _ = self.lstm(x)
-        out = self.fc(out[:, -1, :])  # Πάρε μόνο την τελευταία έξοδο του LSTM
-        return out.squeeze(-1)  # Διόρθωση για να ταιριάζει με τα labels
+        out = self.fc(out[:, -1, :])  # Take only the last output of the LSTM
+        return out.squeeze(-1)  # Ensure compatibility with labels
 
 # Initialize model, loss function, optimizer
 input_size = 1
@@ -43,9 +45,15 @@ output_size = 1
 model = LSTMModel(input_size, hidden_size, output_size).to(device)
 
 criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.0005)
+#optimizer = optim.Adam(model.parameters(), lr=0.0005) #later on with adamW or rmsprop
+optimizer = optim.AdamW(model.parameters(), lr=0.0005)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)  # Μείωση learning rate κάθε 10 epochs
 
+
+# Initialize early stopping variables
+patience = 3  # Define patience for early stopping
+best_loss = float('inf')  # Initialize the best loss as infinity
+epochs_no_improve = 0  # Counter for epochs with no improvement
 
 # Train the model
 num_epochs = 50
@@ -59,7 +67,7 @@ for epoch in range(num_epochs):
     for sequences, labels in train_loader:
         optimizer.zero_grad()
         outputs = model(sequences)
-        labels = labels.squeeze(-1)  # Διόρθωση για συμβατότητα με την έξοδο
+        labels = labels.squeeze(-1)  # Ensure compatibility with the output
         loss = criterion(outputs, labels)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # Prevent exploding gradients
@@ -85,6 +93,17 @@ for epoch in range(num_epochs):
     total_test_loss_sum += total_test_loss  # Accumulate total test loss
 
     print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {total_train_loss:.4f}, Test Loss: {total_test_loss:.4f}')
+
+    # Early stopping logic
+    if total_test_loss < best_loss:
+        best_loss = total_test_loss
+        epochs_no_improve = 0
+        torch.save(model.state_dict(), "best_lstm_dl_model.pth")  # Save the best model
+    else:
+        epochs_no_improve += 1
+        if epochs_no_improve >= patience:
+            print(f"Early stopping at epoch {epoch+1}")
+            break
 
 total_loss_sum = total_train_loss_sum + total_test_loss_sum  # Calculate total sum of losses
 print(f'Total Train Loss Sum: {total_train_loss_sum:.4f}, Total Test Loss Sum: {total_test_loss_sum:.4f}, Total Loss Sum: {total_loss_sum:.4f}')
