@@ -71,6 +71,7 @@ for epoch in range(num_epochs):
 
     print(f"Epoch {epoch+1}, Loss: {total_loss:.4f}")
 
+
 # Αποθήκευση του μοντέλου
 torch.save(model.state_dict(), "transformer_model.pth")
 print("Model saved successfully!")
