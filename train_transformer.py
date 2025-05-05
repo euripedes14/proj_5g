@@ -28,7 +28,7 @@ test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 # Transformer Model
 class TransformerTimeSeries(nn.Module):
     def __init__(self, input_dim, model_dim, num_heads, num_layers, output_dim, dropout=0.1):
-        super(TransformerTimeSeries, self).__init__()
+        super().__init__()
         self.embedding = nn.Linear(input_dim, model_dim)
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=model_dim, nhead=num_heads, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
@@ -44,10 +44,13 @@ class TransformerTimeSeries(nn.Module):
 input_dim = train_sequences.shape[-1]  # Input feature size (2: UL and DL)
 output_dim = train_labels.shape[-1]  # Output feature size (2: UL and DL)
 
+# Adjusted for multivariate output
+# model = TransformerTimeSeries(input_dim=input_dim, model_dim=64, num_heads=8, num_layers=4, output_dim=output_dim).to(device)
 model = TransformerTimeSeries(input_dim=input_dim, model_dim=64, num_heads=8, num_layers=4, output_dim=output_dim).to(device)
 
 criterion = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
+#optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
+optimizer = torch.optim.AdamW(model.parameters(), lr=0.0001)
 
 # Early Stopping
 patience = 3

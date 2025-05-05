@@ -23,31 +23,40 @@ checkpoint = torch.load("best_transformer_model.pth", map_location=device)
 model.load_state_dict(checkpoint)
 model.eval()
 
+def mean_absolute_percentage_error(y_true, y_pred):
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    non_zero_mask = y_true != 0
+    y_true_filtered = y_true[non_zero_mask]
+    y_pred_filtered = y_pred[non_zero_mask]
+    if len(y_true_filtered) == 0:
+        return np.nan
+    return np.mean(np.abs((y_true_filtered - y_pred_filtered) / y_true_filtered)) * 100
+
 def evaluate_transformer(model, test_file, title, ylabel):
     # Load test data
     test_data = np.load(test_file)
-    test_sequences = torch.tensor(test_data["sequences"], dtype=torch.float32).to(device)
-    test_labels = torch.tensor(test_data["labels"], dtype=torch.float32).to(device)
+    test_sequences = torch.tensor(test_data["sequences"], dtype=torch.float32)
+    test_labels = torch.tensor(test_data["labels"], dtype=torch.float32)
+
+    # Ensure the model is in evaluation mode
+    model.eval()
 
     # Get predictions
     with torch.no_grad():
         predictions = model(test_sequences).cpu().numpy()
 
-    test_labels = test_labels.cpu().numpy()
+    test_labels = test_labels.numpy()
 
-    # Compute RMSE
-    rmse_ul = np.sqrt(np.mean((test_labels[:, 0] - predictions[:, 0]) ** 2))
-    rmse_dl = np.sqrt(np.mean((test_labels[:, 1] - predictions[:, 1]) ** 2))
+    # Compute RMSE and MAPE for UL and DL
+    rmse_ul = np.sqrt(mean_squared_error(test_labels[:, 0], predictions[:, 0]))
+    rmse_dl = np.sqrt(mean_squared_error(test_labels[:, 1], predictions[:, 1]))
+    mape_ul = mean_absolute_percentage_error(test_labels[:, 0], predictions[:, 0])
+    mape_dl = mean_absolute_percentage_error(test_labels[:, 1], predictions[:, 1])
 
-    # Compute MAPE
-    def mean_absolute_percentage_error(y_true, y_pred):
-        non_zero_mask = y_true != 0
-        y_true_filtered = y_true[non_zero_mask]
-        y_pred_filtered = y_pred[non_zero_mask]
-        if len(y_true_filtered) == 0:
-            return np.nan
-        return np.mean(np.abs((y_true_filtered - y_pred_filtered) / y_true_filtered)) * 100
+    print(f"{title} - RMSE UL: {rmse_ul:.4f}, RMSE DL: {rmse_dl:.4f}")
+    print(f"{title} - MAPE UL: {mape_ul:.4f}, MAPE DL: {mape_dl:.4f}")
 
+    return mape_ul, mape_dl, rmse_ul, rmse_dl
     mape_ul = mean_absolute_percentage_error(test_labels[:, 0], predictions[:, 0])
     mape_dl = mean_absolute_percentage_error(test_labels[:, 1], predictions[:, 1])
 

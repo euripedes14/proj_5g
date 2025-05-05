@@ -27,7 +27,7 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 #DEFINE MODEL
 class LSTMModel(nn.Module):
     def __init__(self, input_size, hidden_size=100, output_size=1, num_layers=3, dropout=0.2):
-        super(LSTMModel, self).__init__()
+        super().__init__()
         self.lstm = nn.LSTM(
             input_size, hidden_size, num_layers=num_layers, dropout=dropout, batch_first=True, bidirectional=True
         )
