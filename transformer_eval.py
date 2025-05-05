@@ -5,68 +5,78 @@ from sklearn.metrics import mean_squared_error
 
 from train_transformer import TransformerTimeSeries  # Import the Transformer model class
 
-# Ρύθμιση συσκευής
 device = torch.device("cpu")
 print(f"Using device: {device}")
 
-# Φόρτωση του εκπαιδευμένου μοντέλου
-input_dim = 2  # UL + DL Bitrate ως input
-model = TransformerTimeSeries(input_dim=input_dim, model_dim=64, num_heads=8, num_layers=4).to(device)
-model.load_state_dict(torch.load("best_transformer_model.pth"))
-model.eval()
+# Model parameters (MUST match training)
+input_dim = 3  # Corrected to match the training input_dim
+model_dim = 64
+num_heads = 8
+num_layers = 4
+output_dim = 8
 
-# Φόρτωση των test δεδομένων
-test_ul = np.load("test_ul.npz")
-test_dl = np.load("test_dl.npz")
+# Load the trained model
+model_ul = TransformerTimeSeries(input_dim=input_dim, model_dim=model_dim, num_heads=num_heads, num_layers=num_layers, output_dim=output_dim).to(device)
+model_dl = TransformerTimeSeries(input_dim=input_dim, model_dim=model_dim, num_heads=num_heads, num_layers=num_layers, output_dim=output_dim).to(device)
 
-# Μετατροπή σε PyTorch tensors
-test_ul_sequences = torch.tensor(test_ul["sequences"], dtype=torch.float32).to(device)
-test_dl_sequences = torch.tensor(test_dl["sequences"], dtype=torch.float32).to(device)
-test_labels = torch.tensor(test_ul["labels"], dtype=torch.float32).to(device)
+# Load the checkpoint
+checkpoint = torch.load("best_transformer_model.pth", map_location=device)
+model_ul.load_state_dict(checkpoint['model_ul_state_dict'])
+model_dl.load_state_dict(checkpoint['model_dl_state_dict'])
 
-# Συνένωση UL & DL inputs
-test_sequences = torch.cat((test_ul_sequences, test_dl_sequences), dim=-1)
+model_ul.eval()
+model_dl.eval()
 
-# Προβλέψεις
-with torch.no_grad():
-    predictions = model(test_sequences).cpu().numpy()
+def evaluate_transformer(model, test_file, title, ylabel):
+    # Load test data
+    test_data = np.load(test_file)
+    test_sequences = torch.tensor(test_data["sequences"], dtype=torch.float32).to(device)
+    test_labels = torch.tensor(test_data["labels"], dtype=torch.float32).to(device)
 
-test_labels = test_labels.cpu().numpy()
+    # Ensure input shape: (batch, seq_len, input_dim)
+    if test_sequences.ndim == 2:
+        test_sequences = test_sequences.unsqueeze(-1)
 
-# Μετατόπιση των προβλέψεων προς τα πίσω κατά 1 βήμα
-predictions = np.roll(predictions, shift=-1)
+    # Get predictions
+    with torch.no_grad():
+        predictions = model(test_sequences).cpu().numpy()
 
-# Αφαίρεση του τελευταίου στοιχείου (άκυρο λόγω μετατόπισης)
-predictions = predictions[:-1]
-test_labels = test_labels[:-1]
+    test_labels = test_labels.cpu().numpy()
 
-# Υπολογισμός RMSE
-rmse = np.sqrt(mean_squared_error(test_labels, predictions))
+    # Compute RMSE
+    rmse_per_feature = np.sqrt(np.mean((test_labels - predictions) ** 2, axis=0))
+    avg_rmse = np.mean(rmse_per_feature)
 
-# Υπολογισμός MAPE
-def mean_absolute_percentage_error(y_true, y_pred):
-    y_true, y_pred = np.array(y_true), np.array(y_pred)
-    non_zero_mask = y_true != 0
-    y_true_filtered = y_true[non_zero_mask]
-    y_pred_filtered = y_pred[non_zero_mask]
-    
-    if len(y_true_filtered) == 0:
-        return np.nan  # No valid MAPE calculation possible
-    
-    return np.mean(np.abs((y_true_filtered - y_pred_filtered) / y_true_filtered)) * 100
+    # MAPE calculation
+    def mean_absolute_percentage_error(y_true, y_pred):
+        non_zero_mask = y_true != 0
+        y_true_filtered = y_true[non_zero_mask]
+        y_pred_filtered = y_pred[non_zero_mask]
+        if len(y_true_filtered) == 0:
+            return np.nan
+        return np.mean(np.abs((y_true_filtered - y_pred_filtered) / y_true_filtered)) * 100
 
-mape = mean_absolute_percentage_error(test_labels, predictions)
+    mape_per_feature = [mean_absolute_percentage_error(test_labels[:, i], predictions[:, i]) for i in range(test_labels.shape[1])]
+    avg_mape = np.mean(mape_per_feature)
 
-print(f"RMSE: {rmse:.4f}, MAPE: {mape:.4f}")
+    print(f"{title} - Avg RMSE: {avg_rmse:.4f}, Avg MAPE: {avg_mape:.4f}")
+    print(f"RMSE per feature: {rmse_per_feature}")
+    print(f"MAPE per feature: {mape_per_feature}")
 
-# Διάγραμμα προβλέψεων vs πραγματικών τιμών
-plt.figure(figsize=(12, 6))
-plt.plot(test_labels, label='Actual UL Bitrate', linestyle='dashed', alpha=0.7)
-plt.plot(predictions, label='Predicted UL Bitrate', alpha=0.7)
-plt.plot(test_dl["labels"][:-1], label='Actual DL Bitrate', linestyle='dotted', alpha=0.7)  # Προσθήκη DL bitrate
-plt.legend()
-plt.xlabel("Time")
-plt.ylabel("Bitrate")
-plt.title("Transformer Predictions vs Actual Values")
-plt.grid(True)
-plt.show()
+    # Plot predictions vs actual values for all features in one graph
+    plt.figure(figsize=(12, 6))
+    for i in range(test_labels.shape[1]):
+        plt.plot(test_labels[:, i], label=f'Actual (Feature {i+1})', linestyle='dashed', alpha=0.7)
+        plt.plot(predictions[:, i], label=f'Predicted (Feature {i+1})', alpha=0.7)
+    plt.legend()
+    plt.xlabel("Time")
+    plt.ylabel(ylabel)
+    plt.title(f"{title} - Predictions vs Actual Values")
+    plt.grid(True)
+    plt.show()  # Keep the graph open until manually closed
+
+# Evaluate UL
+evaluate_transformer(model_ul, "train_ul_multivariate.npz", title="UL Evaluation", ylabel="UL Metrics")
+
+# Evaluate DL
+evaluate_transformer(model_dl, "train_dl_multivariate.npz", title="DL Evaluation", ylabel="DL Metrics")

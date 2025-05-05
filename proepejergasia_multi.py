@@ -1,0 +1,43 @@
+import numpy as np
+
+# Load the original dataset
+data_ul = np.load("train_ul.npz")
+data_dl = np.load("train_dl.npz")
+
+sequences_ul = data_ul["sequences"]  # Shape: (num_samples, sequence_length)
+labels_ul = data_ul["labels"]        # Shape: (num_samples,)
+
+sequences_dl = data_dl["sequences"]  # Shape: (num_samples, sequence_length)
+labels_dl = data_dl["labels"]        # Shape: (num_samples,)
+
+# Example: Add lagged features and moving averages as additional features
+def add_features(sequences):
+    lag_1 = np.roll(sequences, shift=1, axis=1)  # Lagged by 1 time step
+    lag_1[:, 0] = 0  # Replace the first value with 0 (no lag available)
+
+    moving_avg = np.convolve(sequences.flatten(), np.ones(3)/3, mode='same')  # 3-step moving average
+    moving_avg = moving_avg.reshape(sequences.shape)
+
+    # Stack the original sequence, lagged feature, and moving average
+    return np.stack([sequences, lag_1, moving_avg], axis=-1)  # Shape: (num_samples, sequence_length, num_features)
+
+# Add features to UL and DL sequences
+sequences_ul_multivariate = add_features(sequences_ul)  # Shape: (num_samples, sequence_length, num_features)
+sequences_dl_multivariate = add_features(sequences_dl)  # Shape: (num_samples, sequence_length, num_features)
+
+# Reshape the sequences to ensure they are 3D (batch_size, sequence_length, feature_size)
+sequences_ul_multivariate = sequences_ul_multivariate.reshape(
+    sequences_ul_multivariate.shape[0], sequences_ul_multivariate.shape[1], -1
+)
+sequences_dl_multivariate = sequences_dl_multivariate.reshape(
+    sequences_dl_multivariate.shape[0], sequences_dl_multivariate.shape[1], -1
+)
+
+# Example: Expand labels to include multiple targets (if applicable)
+output_dim = 8  # Number of target variables
+labels_ul_multivariate = np.tile(labels_ul[:, np.newaxis], (1, output_dim))  # Shape: (num_samples, output_dim)
+labels_dl_multivariate = np.tile(labels_dl[:, np.newaxis], (1, output_dim))  # Shape: (num_samples, output_dim)
+
+# Save the modified dataset
+np.savez("train_ul_multivariate.npz", sequences=sequences_ul_multivariate, labels=labels_ul_multivariate)
+np.savez("train_dl_multivariate.npz", sequences=sequences_dl_multivariate, labels=labels_dl_multivariate)
