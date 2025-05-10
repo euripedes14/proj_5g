@@ -19,6 +19,9 @@ df["UL_bitrate"] = pd.to_numeric(df["UL_bitrate"], errors='coerce')
 # Drop rows containing NaN values to maintain data integrity
 df = df.dropna()
 
+#test if the values are 0 and drop them
+# Drop rows where both DL_bitrate and UL_bitrate are 0
+#df = df[(df["DL_bitrate"] != 0) | (df["UL_bitrate"] != 0)]
 # Create a timestamp column assuming each row represents one second
 df["timestamp"] = pd.date_range(start="2024-01-01", periods=len(df), freq="s")
 
@@ -26,7 +29,11 @@ df["timestamp"] = pd.date_range(start="2024-01-01", periods=len(df), freq="s")
 df.set_index("timestamp", inplace=True)
 
 # Aggregate the data per minute by summing the values within each minute interval
-df_minute = df.resample("1min").sum()
+
+#df_minute = df.resample("10s").sum()
+#df_minute = df.resample("30s").sum()
+#df_minute = df.resample("1min").sum()
+df_minute = df.resample("5min").sum()
 
 # Drop any potential NaN values that might have arisen due to resampling
 df_minute = df_minute.dropna()
@@ -40,12 +47,20 @@ scaler_dl = MinMaxScaler()
 scaler_ul = MinMaxScaler()
 
 # Fit and transform the training data using Min-Max scaling
+# train["DL_bitrate"] = scaler_dl.fit_transform(train[["DL_bitrate"]]).astype(np.float64)
+# train["UL_bitrate"] = scaler_ul.fit_transform(train[["UL_bitrate"]]).astype(np.float64)
+
+# # Transform the test data using the same scaling parameters
+# test["DL_bitrate"] = scaler_dl.transform(test[["DL_bitrate"]]).astype(np.float64)
+# test["UL_bitrate"] = scaler_ul.transform(test[["UL_bitrate"]]).astype(np.float64)
+train = df_minute.iloc[:train_size].copy()
+test = df_minute.iloc[train_size:].copy()
+
 train["DL_bitrate"] = scaler_dl.fit_transform(train[["DL_bitrate"]]).astype(np.float64)
 train["UL_bitrate"] = scaler_ul.fit_transform(train[["UL_bitrate"]]).astype(np.float64)
-
-# Transform the test data using the same scaling parameters
 test["DL_bitrate"] = scaler_dl.transform(test[["DL_bitrate"]]).astype(np.float64)
 test["UL_bitrate"] = scaler_ul.transform(test[["UL_bitrate"]]).astype(np.float64)
+
 
 # Save the Min-Max scalers for future use (e.g., de-normalization)
 np.savez("scalers.npz", dl_min=scaler_dl.data_min_, dl_max=scaler_dl.data_max_,
