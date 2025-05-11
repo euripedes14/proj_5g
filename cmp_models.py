@@ -39,21 +39,22 @@ def evaluate_model(model_type, num_runs):
             importlib.reload(train_transformer)  # Reload the training module
             print("Transformer training completed!")
 
-            # Load the Transformer model
+        # Load the Transformer model
             model = TransformerTimeSeries(
                 input_dim=2,  # UL and DL as input features
                 model_dim=64,
                 num_heads=8,
                 num_layers=4,
                 output_dim=2  # UL and DL as output features
-            ).to(torch.device("cpu"))
+        ).to(torch.device("cpu"))
 
-            # Load the checkpoint
-            checkpoint = torch.load("best_transformer_model.pth", map_location=torch.device("cpu"))
-            model.load_state_dict(checkpoint)
-            model.eval()
+        # Load the checkpoint
+        checkpoint = torch.load("best_transformer_model.pth", map_location=torch.device("cpu"))
+        model.load_state_dict(checkpoint)
+        model.eval()
 
-            # Evaluate the Transformer model
+        # Evaluate the Transformer model
+        try:
             mape_ul, mape_dl, rmse_ul, rmse_dl = evaluate_transformer(
                 model=model,
                 test_file="test_multivariate.npz",
@@ -62,6 +63,10 @@ def evaluate_model(model_type, num_runs):
             )
             metrics["MAPE"].append((mape_ul, mape_dl))
             metrics["RMSE"].append((rmse_ul, rmse_dl))
+        except Exception as e:
+            print(f"Error during Transformer evaluation: {e}")
+            messagebox.showerror("Error", f"Transformer evaluation failed: {e}")
+            return
 
     # Compute average and standard deviation
     avg_mape = np.mean(metrics["MAPE"], axis=0)
