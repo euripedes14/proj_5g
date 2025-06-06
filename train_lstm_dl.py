@@ -11,11 +11,15 @@ print(f"Using device: {device}")
 # Load the preprocessed data
 train_data = np.load("train_dl.npz")  
 test_data = np.load("test_dl.npz")
+val_data = np.load("val_dl.npz")    
+
 
 # Convert the loaded NumPy arrays into PyTorch tensors and move them to the selected device
-train_sequences = torch.tensor(train_data["sequences"], dtype=torch.float32).to(device)
+train_sequences = torch.tensor(train_data["sequences"], dtype=torch.float32).to(device) 
 train_labels = torch.tensor(train_data["labels"], dtype=torch.float32).to(device)
-test_sequences = torch.tensor(test_data["sequences"], dtype=torch.float32).to(device)
+val_sequences= torch.tensor(train_data["sequences"], dtype=torch.float32).to(device) 
+val_labels = torch.tensor(train_data["labels"], dtype=torch.float32).to(device)
+test_sequences = torch.tensor(test_data["sequences"], dtype=torch.float32).to(device) 
 test_labels = torch.tensor(test_data["labels"], dtype=torch.float32).to(device)
 
 batch_size = 16 # small batches takes some time but better training
@@ -23,9 +27,11 @@ batch_size = 16 # small batches takes some time but better training
 
 # Create DataLoader for training and testing datasets
 train_dataset = TensorDataset(train_sequences, train_labels)
+val_dataset = TensorDataset(val_sequences, val_labels)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)  # Validation set should not be shuffled
 test_dataset = TensorDataset(test_sequences, test_labels)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
 
 #DEFINE MODEL
 class LSTMModel(nn.Module):
@@ -67,52 +73,57 @@ total_test_loss_sum = 0  # Initialize total sum of test loss
 
 for epoch in range(num_epochs):
     model.train()
-    epoch_loss = 0
-    total_train_loss = 0  # Initialize total training loss for the epoch
+    total_train_loss = 0
     for sequences, labels in train_loader:
         optimizer.zero_grad()
         outputs = model(sequences)
-        labels = labels.squeeze(-1)  # Ensure compatibility with the output
+        labels = labels.squeeze(-1)
         loss = criterion(outputs, labels)
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # Prevent exploding gradients
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
-        epoch_loss += loss.item()
-        total_train_loss += loss.item()  # Accumulate training loss
-    
-    scheduler.step()  # Adjust learning rate
+        total_train_loss += loss.item()
+    scheduler.step()
 
-    # Evaluate on test set
+    # Evaluate on validation set
     model.eval()
-    total_test_loss = 0
+    total_val_loss = 0
     with torch.no_grad():
-        for sequences, labels in test_loader:
+        for sequences, labels in val_loader:
             outputs = model(sequences)
             labels = labels.squeeze(-1)
             loss = criterion(outputs, labels)
-            total_test_loss += loss.item()
-    total_test_loss /= len(test_loader)
-    total_train_loss /= len(train_loader)  # Calculate average training loss
+            total_val_loss += loss.item()
+    total_val_loss /= len(val_loader)
+    total_train_loss /= len(train_loader)
 
-    total_train_loss_sum += total_train_loss  # Accumulate total training loss
-    total_test_loss_sum += total_test_loss  # Accumulate total test loss
+    print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {total_train_loss:.4f}, Val Loss: {total_val_loss:.4f}')
 
-    print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {total_train_loss:.4f}, Test Loss: {total_test_loss:.4f}')
-
-    # Early stopping logic
-    if total_test_loss < best_loss:
-        best_loss = total_test_loss
+    # Early stopping logic (now uses validation loss)
+    if total_val_loss < best_loss:
+        best_loss = total_val_loss
         epochs_no_improve = 0
-        torch.save(model.state_dict(), "best_lstm_dl_model.pth")  # Save the best model
+        torch.save(model.state_dict(), "best_lstm_dl_model.pth")
     else:
         epochs_no_improve += 1
         if epochs_no_improve >= patience:
             print(f"Early stopping at epoch {epoch+1}")
             break
 
-total_loss_sum = total_train_loss_sum + total_test_loss_sum  # Calculate total sum of losses
-print(f'Total Train Loss Sum: {total_train_loss_sum:.4f}, Total Test Loss Sum: {total_test_loss_sum:.4f}, Total Loss Sum: {total_loss_sum:.4f}')
+# After training, evaluate on the test set
+# After training, load the best model and evaluate on the test set
+model.load_state_dict(torch.load("best_lstm_dl_model.pth"))
+model.eval()
+total_test_loss = 0
+with torch.no_grad():
+    for sequences, labels in test_loader:
+        outputs = model(sequences)
+        labels = labels.squeeze(-1)
+        loss = criterion(outputs, labels)
+        total_test_loss += loss.item()
+total_test_loss /= len(test_loader)
+print(f'Final Test Loss: {total_test_loss:.4f}')
 
-# Save the model
+# Optionally save the best model under a generic name
 torch.save(model.state_dict(), "lstm_dl_model.pth")
 print("Model saved successfully!")
