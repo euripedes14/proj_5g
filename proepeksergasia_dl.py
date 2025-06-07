@@ -2,6 +2,7 @@ import pandas as pd  # Importing pandas for data manipulation
 import numpy as np  # Importing numpy for numerical operations
 from sklearn.preprocessing import MinMaxScaler  # Importing MinMaxScaler for data normalization
 
+#σπλιτ
 # Define the file path for the dataset
 file_path = "youtube_dataset.csv"
 
@@ -40,27 +41,27 @@ df_minute = df_minute.dropna()
 
 # Define the train-test split ratio (60% training, 40% testing)
 train_size = int(len(df_minute) * 0.6)
-train, test = df_minute.iloc[:train_size], df_minute.iloc[train_size:]
-
+#train, test = df_minute.iloc[:train_size], df_minute.iloc[train_size:]
+test_size= len(df_minute) - train_size
 # Initialize Min-Max Scalers for normalizing both DL and UL bitrates
 scaler_dl = MinMaxScaler()
 scaler_ul = MinMaxScaler()
 
-# Fit and transform the training data using Min-Max scaling
-# train["DL_bitrate"] = scaler_dl.fit_transform(train[["DL_bitrate"]]).astype(np.float64)
-# train["UL_bitrate"] = scaler_ul.fit_transform(train[["UL_bitrate"]]).astype(np.float64)
+val_ratio = 0.05  # Define the validation ratio (5% of the training set)
+val_size = int(train_size * val_ratio)
+actual_train_size = train_size - val_size
 
-# # Transform the test data using the same scaling parameters
-# test["DL_bitrate"] = scaler_dl.transform(test[["DL_bitrate"]]).astype(np.float64)
-# test["UL_bitrate"] = scaler_ul.transform(test[["UL_bitrate"]]).astype(np.float64)
-train = df_minute.iloc[:train_size].copy()
+train = df_minute.iloc[:actual_train_size].copy()
+val = df_minute.iloc[actual_train_size:train_size].copy()
 test = df_minute.iloc[train_size:].copy()
 
+# Normalize the Downlink (DL) and Uplink (UL) bitrates using Min-Max scaling
 train["DL_bitrate"] = scaler_dl.fit_transform(train[["DL_bitrate"]]).astype(np.float64)
 train["UL_bitrate"] = scaler_ul.fit_transform(train[["UL_bitrate"]]).astype(np.float64)
 test["DL_bitrate"] = scaler_dl.transform(test[["DL_bitrate"]]).astype(np.float64)
 test["UL_bitrate"] = scaler_ul.transform(test[["UL_bitrate"]]).astype(np.float64)
-
+val["DL_bitrate"] = scaler_dl.transform(val[["DL_bitrate"]]).astype(np.float64)
+val["UL_bitrate"] = scaler_ul.transform(val[["UL_bitrate"]]).astype(np.float64)
 
 # Save the Min-Max scalers for future use (e.g., de-normalization)
 np.savez("scalers.npz", dl_min=scaler_dl.data_min_, dl_max=scaler_dl.data_max_,
@@ -80,17 +81,25 @@ window_size = 5
 # Generate rolling window sequences for Downlink (DL) and Uplink (UL)
 train_sequences_dl, train_labels_dl = create_sequences(train["DL_bitrate"].values, window_size)
 test_sequences_dl, test_labels_dl = create_sequences(test["DL_bitrate"].values, window_size)
+val_sequences_dl, val_labels_dl = create_sequences(val["DL_bitrate"].values, window_size)
+
 train_sequences_ul, train_labels_ul = create_sequences(train["UL_bitrate"].values, window_size)
 test_sequences_ul, test_labels_ul = create_sequences(test["UL_bitrate"].values, window_size)
+val_sequences_ul, val_labels_ul = create_sequences(val["UL_bitrate"].values, window_size) 
 
 # Reshape data into the required format for LSTM models: (samples, timesteps, features)
 train_sequences_dl = train_sequences_dl.reshape(-1, window_size, 1)
 test_sequences_dl = test_sequences_dl.reshape(-1, window_size, 1)
+val_sequences_dl = val_sequences_dl.reshape(-1, window_size, 1)
+
 train_sequences_ul = train_sequences_ul.reshape(-1, window_size, 1)
 test_sequences_ul = test_sequences_ul.reshape(-1, window_size, 1)
+val_sequences_ul = val_sequences_ul.reshape(-1, window_size, 1)
 
 # Save the preprocessed data into separate files for training and testing
 np.savez("train_dl.npz", sequences=train_sequences_dl, labels=train_labels_dl)
 np.savez("test_dl.npz", sequences=test_sequences_dl, labels=test_labels_dl)
 np.savez("train_ul.npz", sequences=train_sequences_ul, labels=train_labels_ul)
 np.savez("test_ul.npz", sequences=test_sequences_ul, labels=test_labels_ul)
+np.savez("val_dl.npz", sequences=val_sequences_dl, labels=val_labels_dl)
+np.savez("val_ul.npz", sequences=val_sequences_ul, labels=val_labels_ul)    

@@ -1,0 +1,77 @@
+# 5G Bitrate Time Series Forecasting
+
+This project implements deep learning models for forecasting 5G network downlink (DL) and uplink (UL) bitrates using LSTM and Transformer architectures. It includes data preprocessing, model training, evaluation, and a GUI for comparing model performance.
+
+---
+
+## Features
+
+- **Data Preprocessing:** Cleans, resamples, normalizes, and splits raw bitrate data into train, validation, and test sets. Supports both univariate (DL or UL) and multivariate (DL+UL) forecasting.
+- **Model Training:** 
+  - LSTM models for univariate time series (DL or UL).
+  - Transformer model for multivariate time series (DL+UL).
+  - Early stopping based on validation loss.
+- **Evaluation:** Calculates MAPE and RMSE metrics, supports multiple runs for robust statistics.
+- **GUI:** Tkinter-based interface to select model, number of runs, and view results (mean ± std).
+
+---
+
+## File Structure
+
+- `proepeksergasia_dl.py` / `proepejergasia_multi.py`: Data preprocessing scripts for univariate and multivariate cases.
+- `train_lstm_dl.py` / `train_lstm_ul.py`: LSTM model training scripts for DL and UL.
+- `train_transformer.py`: Transformer model training script for multivariate forecasting.
+- `dl_eval.py` / `ul_eval.py` / `transformer_eval.py`: Evaluation scripts for each model.
+- `cmp_models.py`: Main GUI for running and comparing models.
+- `*.npz`: Preprocessed datasets (NumPy compressed arrays).
+
+---
+
+## How to Use
+
+1. **Preprocess Data**
+   - Run `proepeksergasia_dl.py` for univariate (DL/UL) or `proepejergasia_multi.py` for multivariate.
+   - This will generate `.npz` files for train, validation, and test splits.
+
+2. **Train Models**
+   - Run `train_lstm_dl.py` or `train_lstm_ul.py` to train LSTM models.
+   - Run `train_transformer.py` to train the Transformer model.
+
+3. **Evaluate Models**
+   - Use the evaluation scripts (`dl_eval.py`, `ul_eval.py`, `transformer_eval.py`) to compute metrics on the test set.
+
+4. **Compare Models with GUI**
+   - Run `cmp_models.py`.
+   - Select the model type and number of runs.
+   - Click "Evaluate" to train, test, and compare models. Results are shown as mean ± std for each metric.
+
+---
+
+## Requirements
+
+- Python 3.8+
+- numpy
+- pandas
+- scikit-learn
+- torch
+- tkinter (standard with Python)
+- matplotlib (for plotting, if used in evaluation scripts)
+
+Install dependencies with:
+```bash
+pip install numpy pandas scikit-learn torch matplotlib
+```
+
+---
+
+## Notes & Tips
+
+- **GPU Support:** The code will use GPU if available for training. For large datasets/models, ensure CUDA is installed.
+- **Custom Data:** Place your CSV data in the project directory and update the file path in the preprocessing scripts.
+- **Extensibility:** You can add more models or metrics by following the modular structure.
+
+---
+
+## License
+
+This project is for educational and research purposes.
