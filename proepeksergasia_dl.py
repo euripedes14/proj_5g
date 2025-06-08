@@ -31,10 +31,10 @@ df.set_index("timestamp", inplace=True)
 
 # Aggregate the data per minute by summing the values within each minute interval
 
-#df_minute = df.resample("10s").sum()
-#df_minute = df.resample("30s").sum()
-#df_minute = df.resample("1min").sum()
-df_minute = df.resample("5min").sum()
+df_minute = df.resample("1min").sum()
+#df_minute = df.resample("5min").sum()
+#df_minute = df.resample("10min").sum()
+
 
 # Drop any potential NaN values that might have arisen due to resampling
 df_minute = df_minute.dropna()

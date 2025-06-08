@@ -99,7 +99,7 @@ for epoch in range(num_epochs):
 
     print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {total_train_loss:.4f}, Val Loss: {total_val_loss:.4f}')
 
-    # Early stopping logic (now uses validation loss)
+    # Early stopping logic (uses validation loss)
     if total_val_loss < best_loss:
         best_loss = total_val_loss
         epochs_no_improve = 0
